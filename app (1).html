@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeTech — Smart Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131c;
+    --surface2: #1c1c2e;
+    --border: rgba(255,255,255,0.07);
+    --accent: #7c6bff;
+    --accent2: #00d4b4;
+    --accent3: #ff6b9d;
+    --text: #f0f0f8;
+    --muted: #6b6b8a;
+    --card: rgba(255,255,255,0.04);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999; opacity: 0.4;
+  }
+
+  /* ── PAGE MANAGEMENT ── */
+  .page { display: none; min-height: 100vh; }
+  .page.active { display: flex; }
+
+  /* ══════════════════════════════════════
+     LOGIN PAGE
+  ══════════════════════════════════════ */
+  #loginPage {
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+  }
+  .orb1 { width: 500px; height: 500px; background: rgba(124,107,255,0.15); top: -100px; left: -100px; }
+  .orb2 { width: 400px; height: 400px; background: rgba(0,212,180,0.1); bottom: -80px; right: -80px; }
+  .orb3 { width: 300px; height: 300px; background: rgba(255,107,157,0.08); top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
+  .login-card {
+    position: relative; z-index: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 52px 48px;
+    width: 100%; max-width: 440px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,107,255,0.1);
+    animation: cardIn 0.6s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(30px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 36px;
+  }
+  .brand-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+  .brand-name span { color: var(--accent); }
+
+  .login-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px; font-weight: 700;
+    margin-bottom: 8px; letter-spacing: -0.5px;
+  }
+  .login-sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+
+  .field { margin-bottom: 20px; }
+  .field label {
+    display: block;
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .field input, .field select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    appearance: none;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124,107,255,0.15);
+  }
+  .field select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b6b8a' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+  .field select option { background: #1c1c2e; }
+
+  .btn-primary {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, var(--accent), #6254e8);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    box-shadow: 0 8px 24px rgba(124,107,255,0.35);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(124,107,255,0.45); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .error-msg {
+    background: rgba(255,107,157,0.1);
+    border: 1px solid rgba(255,107,157,0.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px; color: var(--accent3);
+    margin-bottom: 16px; display: none;
+  }
+
+  /* ══════════════════════════════════════
+     DETAILS PAGE
+  ══════════════════════════════════════ */
+  #detailsPage {
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .details-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 48px;
+    width: 100%; max-width: 500px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.4);
+    animation: cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  }
+  .details-header { margin-bottom: 32px; }
+  .step-indicator {
+    display: flex; gap: 6px; margin-bottom: 20px;
+  }
+  .step-dot {
+    height: 4px; border-radius: 2px; flex: 1;
+    background: var(--border);
+  }
+  .step-dot.done { background: var(--accent2); }
+  .step-dot.active { background: var(--accent); }
+  .details-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 700; letter-spacing: -0.4px;
+  }
+  .details-sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+  /* ══════════════════════════════════════
+     PROFILE PAGE
+  ══════════════════════════════════════ */
+  #profilePage {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar-brand {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px;
+  }
+  .topbar-brand span { color: var(--accent); }
+
+  .btn-logout {
+    padding: 8px 20px;
+    background: transparent;
+    border: 1px solid rgba(255,107,157,0.4);
+    border-radius: 10px;
+    color: var(--accent3);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-logout:hover { background: rgba(255,107,157,0.1); border-color: var(--accent3); }
+
+  .profile-hero {
+    padding: 60px 40px 40px;
+    max-width: 900px; margin: 0 auto; width: 100%;
+  }
+
+  .profile-banner {
+    background: linear-gradient(135deg, var(--surface2) 0%, rgba(124,107,255,0.15) 50%, rgba(0,212,180,0.1) 100%);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px;
+    display: flex; align-items: center; gap: 32px;
+    margin-bottom: 24px;
+    position: relative; overflow: hidden;
+    animation: cardIn 0.6s cubic-bezier(0.16,1,0.3,1) both;
+  }
+  .profile-banner::before {
+    content: '';
+    position: absolute; top: -50px; right: -50px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(124,107,255,0.2), transparent 70%);
+    pointer-events: none;
+  }
+
+  .avatar {
+    width: 80px; height: 80px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 32px; font-weight: 800; color: #fff;
+    box-shadow: 0 8px 24px rgba(124,107,255,0.4);
+  }
+  .profile-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px; font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .profile-email { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .profile-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,212,180,0.1);
+    border: 1px solid rgba(0,212,180,0.25);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px; color: var(--accent2); margin-top: 10px;
+  }
+  .badge-dot { width: 6px; height: 6px; background: var(--accent2); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; max-width: 900px; margin: 0 auto 40px; padding: 0 40px;
+    animation: cardIn 0.6s 0.1s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .info-card:hover { border-color: rgba(124,107,255,0.3); }
+  .info-label {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin-bottom: 8px;
+  }
+  .info-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 600;
+  }
+  .info-icon { font-size: 20px; margin-bottom: 10px; }
+
+  /* ══════════════════════════════════════
+     WATCH SECTION
+  ══════════════════════════════════════ */
+  .watch-section {
+    max-width: 900px; margin: 0 auto 80px; padding: 0 40px;
+    animation: cardIn 0.6s 0.2s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 700;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--border);
+  }
+
+  .watch-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    transition: border-color 0.3s;
+  }
+  .watch-card.connected { border-color: rgba(0,212,180,0.4); }
+
+  .connect-btn-wrap { text-align: center; padding: 20px 0; }
+
+  .btn-connect {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, rgba(0,212,180,0.15), rgba(0,212,180,0.05));
+    border: 1px solid rgba(0,212,180,0.35);
+    border-radius: 14px;
+    color: var(--accent2);
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .btn-connect:hover {
+    background: rgba(0,212,180,0.2);
+    border-color: var(--accent2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,212,180,0.2);
+  }
+  .btn-connect .watch-icon { font-size: 20px; }
+
+  .ip-form {
+    display: none;
+    animation: slideDown 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .ip-form.open { display: block; }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .ip-form-inner {
+    border-top: 1px solid var(--border);
+    padding-top: 24px; margin-top: 4px;
+  }
+  .ip-label {
+    font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted); margin-bottom: 10px;
+  }
+  .ip-row { display: flex; gap: 12px; }
+  .ip-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 13px 16px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-variant-numeric: tabular-nums;
+  }
+  .ip-input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(0,212,180,0.12); }
+  .ip-input::placeholder { color: var(--muted); }
+
+  .btn-submit-ip {
+    padding: 13px 24px;
+    background: linear-gradient(135deg, var(--accent2), #00b89a);
+    border: none; border-radius: 12px;
+    color: #0a0a0f;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+  }
+  .btn-submit-ip:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,212,180,0.35); }
+
+  .success-banner {
+    display: none;
+    align-items: center; gap: 12px;
+    background: rgba(0,212,180,0.08);
+    border: 1px solid rgba(0,212,180,0.25);
+    border-radius: 14px;
+    padding: 16px 20px; margin-top: 16px;
+  }
+  .success-banner.show { display: flex; animation: cardIn 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .success-icon { font-size: 24px; }
+  .success-text { font-size: 14px; color: var(--accent2); font-weight: 500; }
+  .success-ip { font-family: 'Syne', sans-serif; font-size: 13px; color: var(--muted); }
+
+  #watchMap {
+    display: none;
+    height: 340px;
+    border-radius: 16px; margin-top: 20px;
+    border: 1px solid rgba(0,212,180,0.2);
+    overflow: hidden;
+  }
+  #watchMap.show { display: block; animation: cardIn 0.5s 0.2s cubic-bezier(0.16,1,0.3,1) both; }
+
+  /* Leaflet dark override */
+  .leaflet-tile-pane { filter: invert(1) hue-rotate(200deg) brightness(0.85) saturate(0.8); }
+  .leaflet-control-attribution { display: none; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .login-card, .details-card { padding: 36px 24px; }
+    .info-grid { grid-template-columns: 1fr; padding: 0 20px; }
+    .profile-hero { padding: 40px 20px 20px; }
+    .profile-banner { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .topbar { padding: 0 20px; }
+    .watch-section { padding: 0 20px; }
+    .ip-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════
+     PAGE 1: LOGIN
+═══════════════════════════════════ -->
+<div id="loginPage" class="page active">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-icon">⬡</div>
+      <div class="brand-name">Safe<span>Tech</span></div>
+    </div>
+    <h1 class="login-title">Welcome back</h1>
+    <p class="login-sub">Sign in to access your smart profile</p>
+
+    <div class="error-msg" id="loginError">⚠ Please enter a valid email and password.</div>
+
+    <div class="field">
+      <label for="emailInput">Email Address</label>
+      <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label for="passwordInput">Password</label>
+      <input type="password" id="passwordInput" placeholder="Enter your password">
+    </div>
+    <button class="btn-primary" onclick="handleLogin()">Sign In →</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     PAGE 2: PERSONAL DETAILS
+═══════════════════════════════════ -->
+<div id="detailsPage" class="page">
+  <div class="details-card">
+    <div class="details-header">
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+      </div>
+      <h2 class="details-title">Personal Details</h2>
+      <p class="details-sub">Tell us a bit about yourself to complete your profile</p>
+    </div>
+
+    <div class="error-msg" id="detailsError">⚠ Please fill in all fields.</div>
+
+    <div class="field">
+      <label for="usernameInput">Username</label>
+      <input type="text" id="usernameInput" placeholder="@yourname">
+    </div>
+    <div class="field">
+      <label for="phoneInput">Phone Number</label>
+      <input type="tel" id="phoneInput" placeholder="+91 98765 43210">
+    </div>
+    <div class="field">
+      <label for="cityInput">City</label>
+      <input type="text" id="cityInput" placeholder="Your city">
+    </div>
+    <div class="field">
+      <label for="countrySelect">Country</label>
+      <select id="countrySelect">
+        <option value="">Select your country</option>
+        <option>Afghanistan</option><option>Albania</option><option>Algeria</option>
+        <option>Argentina</option><option>Australia</option><option>Austria</option>
+        <option>Bangladesh</option><option>Belgium</option><option>Brazil</option>
+        <option>Canada</option><option>Chile</option><option>China</option>
+        <option>Colombia</option><option>Croatia</option><option>Czech Republic</option>
+        <option>Denmark</option><option>Egypt</option><option>Finland</option>
+        <option>France</option><option>Germany</option><option>Ghana</option>
+        <option>Greece</option><option>Hungary</option><option>India</option>
+        <option>Indonesia</option><option>Iran</option><option>Iraq</option>
+        <option>Ireland</option><option>Israel</option><option>Italy</option>
+        <option>Japan</option><option>Jordan</option><option>Kenya</option>
+        <option>Malaysia</option><option>Mexico</option><option>Morocco</option>
+        <option>Nepal</option><option>Netherlands</option><option>New Zealand</option>
+        <option>Nigeria</option><option>Norway</option><option>Pakistan</option>
+        <option>Peru</option><option>Philippines</option><option>Poland</option>
+        <option>Portugal</option><option>Romania</option><option>Russia</option>
+        <option>Saudi Arabia</option><option>Singapore</option><option>South Africa</option>
+        <option>South Korea</option><option>Spain</option><option>Sri Lanka</option>
+        <option>Sweden</option><option>Switzerland</option><option>Thailand</option>
+        <option>Turkey</option><option>Ukraine</option><option>United Arab Emirates</option>
+        <option>United Kingdom</option><option>United States</option><option>Vietnam</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="handleDetails()">Complete Profile →</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     PAGE 3: PROFILE
+═══════════════════════════════════ -->
+<div id="profilePage" class="page">
+
+  <!-- Top Bar -->
+  <nav class="topbar">
+    <div class="topbar-brand">Safe<span>Tech</span></div>
+    <button class="btn-logout" onclick="handleLogout()">⏻ Log Out</button>
+  </nav>
+
+  <!-- Hero Banner -->
+  <section class="profile-hero">
+    <div class="profile-banner" id="profileBanner">
+      <div class="avatar" id="profileAvatar"></div>
+      <div>
+        <div class="profile-name" id="profileName"></div>
+        <div class="profile-email" id="profileEmail"></div>
+        <div class="profile-badge"><span class="badge-dot"></span> Active Profile</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Info Cards -->
+  <div class="info-grid" id="infoGrid">
+    <div class="info-card">
+      <div class="info-icon">📱</div>
+      <div class="info-label">Phone</div>
+      <div class="info-value" id="profilePhone"></div>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">🏙️</div>
+      <div class="info-label">City</div>
+      <div class="info-value" id="profileCity"></div>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">🌍</div>
+      <div class="info-label">Country</div>
+      <div class="info-value" id="profileCountry"></div>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">✉️</div>
+      <div class="info-label">Email</div>
+      <div class="info-value" id="profileEmailCard" style="font-size:14px; word-break:break-all;"></div>
+    </div>
+  </div>
+
+  <!-- Watch Connect Section -->
+  <section class="watch-section">
+    <div class="section-title">⌚ Smart Watch</div>
+
+    <div class="watch-card" id="watchCard">
+
+      <div class="connect-btn-wrap" id="connectBtnWrap">
+        <button class="btn-connect" onclick="toggleIPForm()">
+          <span class="watch-icon">⌚</span> Connect Watch via IP Address
+        </button>
+      </div>
+
+      <!-- IP Form -->
+      <div class="ip-form" id="ipForm">
+        <div class="ip-form-inner">
+          <div class="ip-label">Enter Watch IP Address</div>
+          <div class="ip-row">
+            <input class="ip-input" id="ipInput" type="text" placeholder="e.g. 192.168.1.100">
+            <button class="btn-submit-ip" onclick="connectWatch()">Connect</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Success -->
+      <div class="success-banner" id="successBanner">
+        <div class="success-icon">✅</div>
+        <div>
+          <div class="success-text">Successfully connected to watch</div>
+          <div class="success-ip" id="connectedIP"></div>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <div id="watchMap"></div>
+
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // ── State ──
+  const state = { email: '', username: '', phone: '', city: '', country: '' };
+  let mapInstance = null;
+
+  // ── Helpers ──
+  function show(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function err(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3500);
+  }
+
+  // ── LOGIN ──
+  function handleLogin() {
+    const email = document.getElementById('emailInput').value.trim();
+    const pass  = document.getElementById('passwordInput').value.trim();
+    if (!email || !pass) { err('loginError', 'Please enter both email and password.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err('loginError', 'Enter a valid email address.'); return; }
+    if (pass.length < 4) { err('loginError', 'Password must be at least 4 characters.'); return; }
+    state.email = email;
+    show('detailsPage');
+  }
+
+  document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+  document.getElementById('emailInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+
+  // ── DETAILS ──
+  function handleDetails() {
+    const u = document.getElementById('usernameInput').value.trim();
+    const p = document.getElementById('phoneInput').value.trim();
+    const c = document.getElementById('cityInput').value.trim();
+    const co = document.getElementById('countrySelect').value;
+
+    if (!u || !p || !c || !co) { err('detailsError', 'Please fill in all fields.'); return; }
+
+    state.username = u; state.phone = p; state.city = c; state.country = co;
+    buildProfile();
+    show('profilePage');
+  }
+
+  function buildProfile() {
+    const initials = state.username.replace('@','').slice(0,2).toUpperCase() || '??';
+    document.getElementById('profileAvatar').textContent = initials;
+    document.getElementById('profileName').textContent = state.username.startsWith('@') ? state.username : '@' + state.username;
+    document.getElementById('profileEmail').textContent = state.email;
+    document.getElementById('profilePhone').textContent = state.phone;
+    document.getElementById('profileCity').textContent = state.city;
+    document.getElementById('profileCountry').textContent = state.country;
+    document.getElementById('profileEmailCard').textContent = state.email;
+  }
+
+  // ── LOGOUT ──
+  function handleLogout() {
+    // Reset
+    ['emailInput','passwordInput','usernameInput','phoneInput','cityInput'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('countrySelect').value = '';
+    document.getElementById('ipForm').classList.remove('open');
+    document.getElementById('successBanner').classList.remove('show');
+    document.getElementById('watchMap').classList.remove('show');
+    document.getElementById('watchCard').classList.remove('connected');
+    document.getElementById('connectBtnWrap').style.display = '';
+    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+    show('loginPage');
+  }
+
+  // ── WATCH CONNECT ──
+  function toggleIPForm() {
+    document.getElementById('ipForm').classList.toggle('open');
+    document.getElementById('ipInput').focus();
+  }
+
+  function connectWatch() {
+    const ip = document.getElementById('ipInput').value.trim();
+    if (!ip) { document.getElementById('ipInput').focus(); return; }
+
+    // Simulate IP → location mapping
+    const locations = {
+      default: { lat: 20.5937, lng: 78.9629, label: 'India' },
+      '192.168': { lat: 28.6139, lng: 77.2090, label: 'New Delhi, India' },
+      '10.0':    { lat: 19.0760, lng: 72.8777, label: 'Mumbai, India' },
+      '172.16':  { lat: 51.5074, lng: -0.1278, label: 'London, UK' },
+      '8.8':     { lat: 37.4220, lng: -122.0841, label: 'Mountain View, CA' },
+      '1.1':     { lat: -33.8688, lng: 151.2093, label: 'Sydney, Australia' },
+    };
+
+    let loc = locations.default;
+    for (const key in locations) {
+      if (ip.startsWith(key)) { loc = locations[key]; break; }
+    }
+
+    // Show success
+    document.getElementById('connectedIP').textContent = `IP: ${ip}  •  ${loc.label}`;
+    document.getElementById('successBanner').classList.add('show');
+    document.getElementById('watchCard').classList.add('connected');
+    document.getElementById('ipForm').classList.remove('open');
+    document.getElementById('connectBtnWrap').style.display = 'none';
+
+    // Show map
+    const mapEl = document.getElementById('watchMap');
+    mapEl.classList.add('show');
+
+    // Init Leaflet
+    setTimeout(() => {
+      if (mapInstance) mapInstance.remove();
+      mapInstance = L.map('watchMap', { zoomControl: true }).setView([loc.lat, loc.lng], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          width:36px;height:36px;
+          background:linear-gradient(135deg,#7c6bff,#00d4b4);
+          border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);
+          border:3px solid #fff;
+          box-shadow:0 4px 12px rgba(124,107,255,0.5)
+        "></div>`,
+        iconSize: [36,36], iconAnchor: [18,36]
+      });
+
+      L.marker([loc.lat, loc.lng], { icon })
+        .addTo(mapInstance)
+        .bindPopup(`<b>⌚ Watch Location</b><br>IP: ${ip}<br>${loc.label}`)
+        .openPopup();
+
+      mapInstance.invalidateSize();
+    }, 300);
+  }
+
+  document.getElementById('ipInput').addEventListener('keydown', e => { if (e.key === 'Enter') connectWatch(); });
+</script>
+</body>
+</html>
